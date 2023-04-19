@@ -23,6 +23,69 @@ import visualize
 from model import log
 from PIL import Image, ImageDraw
 
+# Begin helper functions for Python/C API
+def LoadImage(image_path):
+    img = cv2.imread(image_path)
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+def LoadReadyWeights(weight_path):
+    test_model, inference_config = load_inference_model(1, weight_path)
+    return test_model
+
+def angle_between_three_points(pointA, pointB, pointC):
+    
+    x1x2s = math.pow((pointA[0] - pointB[0]),2)
+    x1x3s = math.pow((pointA[0] - pointC[0]),2)
+    x2x3s = math.pow((pointB[0] - pointC[0]),2)
+    
+    y1y2s = math.pow((pointA[1] - pointB[1]),2)
+    y1y3s = math.pow((pointA[1] - pointC[1]),2)
+    y2y3s = math.pow((pointB[1] - pointC[1]),2)
+
+    cosine_angle = np.arccos((x1x2s + y1y2s + x2x3s + y2y3s - x1x3s - y1y3s)/(2*math.sqrt(x1x2s + y1y2s)*math.sqrt(x2x3s + y2y3s)))
+
+    return np.degrees(cosine_angle)
+
+def GetCornersFromGeneratedMask(image, test_model, tolerance = 10, per_corner = 21):
+    r = test_model.detect([image])[0]
+    object_count = len(r["class_ids"])
+    corner_list = []
+    prev_corner1 = ()
+    prev_corner2 = ()
+    for i in range(object_count):
+        mask = r["masks"][:, :, i]
+        contours = visualize.get_mask_contours(mask)
+        for cnt in contours:
+            corners = cnt.reshape(-1, 2)
+            for j in range(len(corners)):
+                if (j % per_corner == 0):
+                    forecolors = visualize.random_colors(80)
+                    if prev_corner1 == ():
+                        prev_corner1 = corners[j]
+                        x, y = prev_corner1
+                        corner_list.append((x, y))
+                    elif prev_corner2 == ():
+                        prev_corner2 = corners[j]
+                        x, y = prev_corner2
+                        corner_list.append((x, y))
+                    else:
+                        angle = angle_between_three_points(prev_corner1, prev_corner2, corners[j])
+
+                        if (angle > 180 - tolerance):
+                            x2, y2 = prev_corner2
+                            x1, y1 = corners[j]
+                            corner_list.remove((x2, y2))
+                            corner_list.append((x1, y1))
+                            prev_corner2 = corners[j]
+                        else:
+                            x1, y1 = corners[j]
+                            corner_list.append((x1, y1))
+                            prev_corner1 = prev_corner2
+                            prev_corner2 = corners[j]
+
+    return corner_list
+# End helper functions for Python/C API
+
 class CustomConfig(Config):
     def __init__(self, num_classes):
 

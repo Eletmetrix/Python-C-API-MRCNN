@@ -1,10 +1,26 @@
 
 #include <iostream>
 #include <Python.h>
+#include <vector>
+#include <sstream>
 
-// Our macros for exit statuses.
-#define EXIT_SUCCESS 0;
-#define EXIT_FAILURE 1;
+/*
+ * Coordinate structure
+ */
+struct Coordinate
+{
+    uint16_t x;
+    uint16_t y;
+
+    Coordinate(uint16_t X, uint16_t Y)
+        : x(X), y(Y)
+    { }
+
+    std::string toString() const
+    {
+        return "(X: " + std::to_string(x) + ", Y: " + std::to_string(y) + ")";
+    }
+};
 
 /*
  * The Mask R-CNN library. 
@@ -34,20 +50,10 @@ public:
 
         // Initialize module variables.
         mrcnn_module = PyImport_ImportModule("m_rcnn");
-        visualize_module = PyImport_ImportModule("visualize");
 
-        if (!mrcnn_module || !visualize_module) {
+        if (!mrcnn_module) {
             std::cout << "modules are not found!" << std::endl;
             mrcnn_module = nullptr;
-            visualize_module = nullptr;
-            return;
-        }
-
-        // Initialize functions.
-        load_inference_model_func = PyObject_GetAttrString(mrcnn_module, "load_inference_model");
-        if (load_inference_model_func == nullptr || !PyCallable_Check(load_inference_model_func)) {
-            std::cout << "load_inference_model() not found or not callable." << std::endl;
-            return;
         }
     }
 
@@ -57,12 +63,8 @@ public:
     ~MaskRCNN()
     {
         Py_XDECREF(mrcnn_module);
-        Py_XDECREF(visualize_module);
-        Py_XDECREF(load_inference_model_func);
 
         mrcnn_module = nullptr;
-        visualize_module = nullptr;
-        load_inference_model_func = nullptr;
     }
 
     /*
@@ -70,95 +72,52 @@ public:
      */
     bool IsValid() const
     {
-        return mrcnn_module != nullptr && visualize_module != nullptr && load_inference_model_func != nullptr;
+        return mrcnn_module != nullptr;
     }
 
-    /*
-     * This is for loading inference model.
-     */
-    bool LoadInferenceModel(const char* TrainedDataPath, PyObject*& TestModel, PyObject*& InferenceConfig)
+    PyObject* LoadImage(const char* ImagePath)
     {
-        PyObject* resultInference = PyObject_CallObject(load_inference_model_func, PyTuple_Pack(2, Py_BuildValue("i", 1), Py_BuildValue("s", TrainedDataPath)));
-        if (resultInference == nullptr)
+        PyObject* loadimage_func = PyObject_GetAttrString(mrcnn_module, "LoadImage");
+        PyObject* Image = PyObject_CallObject(loadimage_func, PyTuple_Pack(1, PyUnicode_FromString(ImagePath)));
+        Py_DECREF(loadimage_func);
+        return Image;
+    }
+
+    PyObject* LoadReadyWeights(const char* WeightPath)
+    {
+        PyObject* loadreadyweights_func = PyObject_GetAttrString(mrcnn_module, "LoadReadyWeights");
+        PyObject* TestModel = PyObject_CallObject(loadreadyweights_func, PyTuple_Pack(1, PyUnicode_FromString(WeightPath)));
+        Py_DECREF(loadreadyweights_func);
+        return TestModel;
+    }
+
+    PyObject* GetCornersFromGeneratedMask(PyObject* Image, PyObject* TestModel, int tolerance = 10, int perCorner = 21)
+    {
+        PyObject* getcornersfromgeneratedmask_func = PyObject_GetAttrString(mrcnn_module, "GetCornersFromGeneratedMask");
+
+        if (getcornersfromgeneratedmask_func == nullptr)
         {
-            std::cout << "load_inference_model() not worked as well." << std::endl;
-            return false;
+            PyErr_Print();
+            return nullptr;
         }
 
-        TestModel = PyTuple_GetItem(resultInference, 0);
-        InferenceConfig = PyTuple_GetItem(resultInference, 1);
-        return true;
+        PyObject* Coords = PyObject_CallObject(getcornersfromgeneratedmask_func, PyTuple_Pack(4, Image, TestModel, PyLong_FromLong(tolerance), PyLong_FromLong(perCorner)));
+
+        if (Coords == nullptr)
+        {
+            PyErr_Print();
+            return nullptr;
+        }
+
+        Py_DECREF(getcornersfromgeneratedmask_func);
+        return Coords;
     }
 
 protected:
     PyObject* mrcnn_module = nullptr;
-    PyObject* visualize_module = nullptr;
-    PyObject* load_inference_model_func = nullptr;
 };
 
-class OpenCV
-{
-public:
-    /*
-     * The constructor.
-     */
-    OpenCV()
-    {
-        cv2_module = PyImport_ImportModule("cv2");
-
-        if (!cv2_module) {
-            std::cout << "modules are not found!" << std::endl;
-            cv2_module = nullptr;
-            return;
-        }
-
-        // Initialize functions.
-        imread_func = PyObject_GetAttrString(cv2_module, "imread");
-        if (imread_func == nullptr || !PyCallable_Check(imread_func)) {
-            std::cout << "cv2.imread() not found or not callable." << std::endl;
-            return;
-        }
-    }
-
-    /*
-     * The destructor.
-     */
-    ~OpenCV()
-    {
-        Py_XDECREF(cv2_module);
-        Py_XDECREF(imread_func);
-
-        cv2_module = nullptr;
-        imread_func = nullptr;
-    }
-
-    /*
-     * This is for checking our module was loaded successfully.
-     */
-    bool IsValid() const
-    {
-        return cv2_module != nullptr && imread_func != nullptr;
-    }
-
-    /*
-     * This is for reading images. for more information, check opencv-python module and imread function.
-     */
-    bool ImRead(const char* InputImagePath, PyObject*& Image)
-    {
-        Image = PyObject_CallObject(imread_func, PyTuple_Pack(1, Py_BuildValue("s", InputImagePath)));
-        if (Image == nullptr)
-        {
-            std::cout << "cv2.imread() not worked as well." << std::endl;
-            return false;
-        }
-
-        return true;
-    }
-
-protected:
-    PyObject* cv2_module = nullptr;
-    PyObject* imread_func = nullptr;
-};
+static std::vector<Coordinate> corner_list;
 
 int main()
 {
@@ -166,32 +125,39 @@ int main()
 
     // Load libraries.
     MaskRCNN* mrcnn = new MaskRCNN;
-    OpenCV* cv2 = new OpenCV;
 
-    if (!mrcnn->IsValid() || !cv2->IsValid())
+    if (!mrcnn->IsValid())
     {
         // Modules didn't loaded! We can't continue with that issue.
         return EXIT_FAILURE;
     }
 
-    // Get image value.
-    PyObject* img;
-    if (!cv2->ImRead("Images\\image.jpg", img))
-    {
-        // There's a error.
-        return EXIT_FAILURE;
+    PyObject* Image = mrcnn->LoadImage("Images\\image.jpg");
+    PyObject* TestModel = mrcnn->LoadReadyWeights("Data\\mask_rcnn_object_0005.h5");
+    PyObject* Coords = mrcnn->GetCornersFromGeneratedMask(Image, TestModel);
+    
+    PyObject* pStr = PyObject_Repr(Coords);
+    if (pStr) {
+        // Python stringini C stringine dönüþtürme
+        const char* cStr = PyUnicode_AsUTF8(pStr);
+        if (cStr) {
+            // C stringini ekrana yazdýrma
+            printf("Python nesnesi: %s\n", cStr);
+        }
+        else {
+            printf("Failed to convert Python object to string\n");
+        }
+        Py_DECREF(pStr); // Bellek temizliði
+    }
+    else {
+        printf("Failed to get string representation of Python object\n");
     }
 
-    // Get inference configuration.
-    PyObject* test_model;
-    PyObject* inference_config;
-    if (!mrcnn->LoadInferenceModel("Data\\mask_rcnn_object_0005.h5", test_model, inference_config))
-    {
-        // There's a error.
-        return EXIT_FAILURE;
-    }
+    Py_DECREF(Image);
+    Py_DECREF(TestModel);
+    Py_DECREF(Coords);
 
     Py_Finalize();
 
-    return 0;
+    return EXIT_SUCCESS;
 }

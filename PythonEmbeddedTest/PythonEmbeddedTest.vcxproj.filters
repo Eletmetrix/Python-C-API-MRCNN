@@ -19,6 +19,9 @@
     <Filter Include="Data">
       <UniqueIdentifier>{537b9a46-20b3-48cb-8187-c44db60829d8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Python\mask_rcnn">
+      <UniqueIdentifier>{51ef292d-a33c-4440-9bc8-ada77907507c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="PythonEmbeddedTest.cpp">
@@ -32,9 +35,27 @@
     <None Include="Data\mask_rcnn_object_0005.h5">
       <Filter>Data</Filter>
     </None>
+    <None Include="Python\mask_rcnn\m_rcnn.py">
+      <Filter>Python\mask_rcnn</Filter>
+    </None>
+    <None Include="Python\mask_rcnn\model.py">
+      <Filter>Python\mask_rcnn</Filter>
+    </None>
+    <None Include="Python\mask_rcnn\parallel_model.py">
+      <Filter>Python\mask_rcnn</Filter>
+    </None>
+    <None Include="Python\mask_rcnn\utils.py">
+      <Filter>Python\mask_rcnn</Filter>
+    </None>
+    <None Include="Python\mask_rcnn\visualize.py">
+      <Filter>Python\mask_rcnn</Filter>
+    </None>
+    <None Include="Python\mask_rcnn\config.py">
+      <Filter>Python\mask_rcnn</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="Images\31_3_2023_11_12_28_IMG_0016.JPG">
+    <Image Include="Images\image.jpg">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

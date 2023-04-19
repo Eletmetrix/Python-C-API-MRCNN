@@ -144,9 +144,15 @@
   <ItemGroup>
     <None Include="Data\mask_rcnn_object_0005.h5" />
     <None Include="Python\detection.py" />
+    <None Include="Python\mask_rcnn\config.py" />
+    <None Include="Python\mask_rcnn\model.py" />
+    <None Include="Python\mask_rcnn\m_rcnn.py" />
+    <None Include="Python\mask_rcnn\parallel_model.py" />
+    <None Include="Python\mask_rcnn\utils.py" />
+    <None Include="Python\mask_rcnn\visualize.py" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="Images\31_3_2023_11_12_28_IMG_0016.JPG" />
+    <Image Include="Images\image.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
