@@ -120,7 +120,7 @@ public:
         return TestModel;
     }
 
-    PyObject* GetCornersFromGeneratedMask(PyObject* Image, PyObject* TestModel, int tolerance = 10, int perCorner = 21)
+    PyObject* GetCornersFromGeneratedMask(PyObject* Image, PyObject* TestModel, int tolerance = 10, int perCorner = 21, Coordinate scale_factor = Coordinate(0.95f, 0.95f))
     {
         PyObject* getcornersfromgeneratedmask_func = PyObject_GetAttrString(mrcnn_module, "GetCornersFromGeneratedMask");
 
@@ -130,7 +130,14 @@ public:
             return nullptr;
         }
 
-        PyObject* Coords = PyObject_CallObject(getcornersfromgeneratedmask_func, PyTuple_Pack(4, Image, TestModel, PyLong_FromLong(tolerance), PyLong_FromLong(perCorner)));
+        PyObject* Coords = PyObject_CallObject(getcornersfromgeneratedmask_func, PyTuple_Pack(5, 
+            Image, 
+            TestModel, 
+            PyLong_FromLong(tolerance), 
+            PyLong_FromLong(perCorner), 
+            PyTuple_Pack(2, 
+                PyLong_FromLong(scale_factor.x), 
+                PyLong_FromLong(scale_factor.y))));
 
         if (Coords == nullptr)
         {
