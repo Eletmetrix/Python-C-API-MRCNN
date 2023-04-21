@@ -22,6 +22,7 @@ import model as modellib
 import visualize
 from model import log
 from PIL import Image, ImageDraw
+from shapely.geometry import Polygon
 
 # Begin helper functions for Python/C API
 def LoadImage(image_path):
@@ -32,8 +33,10 @@ def LoadReadyWeights(weight_path):
     test_model, inference_config = load_inference_model(1, weight_path)
     return test_model
 
+def edge_length(point1, point2):
+    return math.sqrt((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2)
+
 def angle_between_three_points(pointA, pointB, pointC):
-    
     x1x2s = math.pow((pointA[0] - pointB[0]),2)
     x1x3s = math.pow((pointA[0] - pointC[0]),2)
     x2x3s = math.pow((pointB[0] - pointC[0]),2)
@@ -42,11 +45,18 @@ def angle_between_three_points(pointA, pointB, pointC):
     y1y3s = math.pow((pointA[1] - pointC[1]),2)
     y2y3s = math.pow((pointB[1] - pointC[1]),2)
 
-    cosine_angle = np.arccos((x1x2s + y1y2s + x2x3s + y2y3s - x1x3s - y1y3s)/(2*math.sqrt(x1x2s + y1y2s)*math.sqrt(x2x3s + y2y3s)))
+    return np.arccos((x1x2s + y1y2s + x2x3s + y2y3s - x1x3s - y1y3s)/(2*math.sqrt(x1x2s + y1y2s)*math.sqrt(x2x3s + y2y3s)))
 
-    return np.degrees(cosine_angle)
+def max_diameter(polygon):
+    max_distance = 0
+    for i in range(len(polygon)):
+        for j in range(i+1, len(polygon)):
+            distance = edge_length(polygon[i], polygon[j])
+            if distance > max_distance:
+                max_distance = distance
+    return max_distance
 
-def GetCornersFromGeneratedMask(image, test_model, tolerance = 10, per_corner = 21):
+def GetCornersFromGeneratedMask(image, test_model, tolerance = 10, per_corner = 21, scale_factor = (0.95, 0.95)):
     r = test_model.detect([image])[0]
     object_count = len(r["class_ids"])
     corner_list = []
@@ -69,7 +79,7 @@ def GetCornersFromGeneratedMask(image, test_model, tolerance = 10, per_corner = 
                         x, y = prev_corner2
                         corner_list.append((x, y))
                     else:
-                        angle = angle_between_three_points(prev_corner1, prev_corner2, corners[j])
+                        angle = math.degrees(angle_between_three_points(prev_corner1, prev_corner2, corners[j]))
 
                         if (angle > 180 - tolerance):
                             x2, y2 = prev_corner2
@@ -83,7 +93,33 @@ def GetCornersFromGeneratedMask(image, test_model, tolerance = 10, per_corner = 
                             prev_corner1 = prev_corner2
                             prev_corner2 = corners[j]
 
-    return corner_list
+    poly = Polygon(corner_list)
+    centroid = poly.centroid
+    cx, cy = map(int, (centroid.x, centroid.y))
+
+    sel_x, sel_y = (0, 0)
+    sel_dist = 0
+    for i in range(len(corner_list)):
+        x, y = corner_list[i]
+        dist = math.sqrt((cx - x)**2 + (cy - y)**2)
+        if (sel_x - cx)*(sel_y - cy) < (x - cx)*(y - cy) or sel_dist == 0 or dist < sel_dist:
+            sel_dist = dist
+            sel_x = x
+            sel_y = y
+
+    left_up_x = sel_x
+    left_up_y = sel_y
+    right_down_x = cx + cx - sel_x
+    right_down_y = cy + cy - sel_y
+    diff_horizontal = abs(left_up_x - right_down_x) - abs(left_up_x - right_down_x) * scale_factor[0]
+    diff_vertical = abs(left_up_y - right_down_y) - abs(left_up_y - right_down_y) * scale_factor[1]
+
+    left_up_x -= int(diff_horizontal / 2)
+    left_up_y -= int(diff_vertical / 2)
+    right_down_x += int(diff_horizontal / 2)
+    right_down_y += int(diff_vertical / 2)
+
+    return ((left_up_x, left_up_y), (right_down_x, right_down_y))
 # End helper functions for Python/C API
 
 class CustomConfig(Config):

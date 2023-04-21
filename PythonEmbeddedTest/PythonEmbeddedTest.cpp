@@ -12,6 +12,10 @@ struct Coordinate
     uint16_t x;
     uint16_t y;
 
+    Coordinate()
+        : x(0), y(0)
+    { }
+
     Coordinate(uint16_t X, uint16_t Y)
         : x(X), y(Y)
     { }
@@ -21,6 +25,31 @@ struct Coordinate
         return "(X: " + std::to_string(x) + ", Y: " + std::to_string(y) + ")";
     }
 };
+
+struct Rectangle
+{
+    Coordinate LeftUp;
+    Coordinate RightDown;
+
+    Rectangle()
+        : LeftUp(), RightDown()
+    {}
+
+    Rectangle(Coordinate leftUp, Coordinate rightDown)
+        : LeftUp(leftUp), RightDown(rightDown)
+    {}
+
+    std::string toString() const
+    {
+        return "(Left Up Corner: " + LeftUp.toString() + ", Right Down Corner: " + RightDown.toString() + ")";
+    }
+};
+
+std::ostream& operator<< (std::ostream& os, const Coordinate& coord)
+{
+    os << "(" << coord.x << ", " << coord.y << ")";
+    return os;
+}
 
 /*
  * The Mask R-CNN library. 
@@ -117,7 +146,7 @@ protected:
     PyObject* mrcnn_module = nullptr;
 };
 
-static std::vector<Coordinate> corner_list;
+static Rectangle rect = Rectangle();
 
 int main()
 {
@@ -135,26 +164,24 @@ int main()
     PyObject* Image = mrcnn->LoadImage("Images\\image.jpg");
     PyObject* TestModel = mrcnn->LoadReadyWeights("Data\\mask_rcnn_object_0005.h5");
     PyObject* Coords = mrcnn->GetCornersFromGeneratedMask(Image, TestModel);
-    
-    PyObject* pStr = PyObject_Repr(Coords);
-    if (pStr) {
-        // Python stringini C stringine dönüþtürme
-        const char* cStr = PyUnicode_AsUTF8(pStr);
-        if (cStr) {
-            // C stringini ekrana yazdýrma
-            printf("Python nesnesi: %s\n", cStr);
-        }
-        else {
-            printf("Failed to convert Python object to string\n");
-        }
-        Py_DECREF(pStr); // Bellek temizliði
-    }
-    else {
-        printf("Failed to get string representation of Python object\n");
-    }
 
     Py_DECREF(Image);
     Py_DECREF(TestModel);
+
+    /*PyObject* pStr = PyObject_Repr(Coords);
+    if (Coords)
+    {
+        const char* str = PyUnicode_AsUTF8(pStr);
+        std::cout << "Val: " << str << std::endl;
+    }*/
+
+    rect = Rectangle(
+        Coordinate(PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 0), 0)), PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 1), 0))),
+        Coordinate(PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 0), 1)), PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 1), 1)))
+    );
+
+    std::cout << rect.toString();
+
     Py_DECREF(Coords);
 
     Py_Finalize();
