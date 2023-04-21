@@ -124,8 +124,6 @@ public:
 
         PyObject* scale_factor_ptr = Py_BuildValue("(ff)", scale_factor.x, scale_factor.y);
 
-        std::cout << "CPP: " << scale_factor.toString() << ", Python: " << PyUnicode_AsUTF8(PyObject_Repr(scale_factor_ptr));
-
         PyObject* Coords = PyObject_CallObject(getcornersfromgeneratedmask_func, PyTuple_Pack(5,
             Image,
             TestModel,
