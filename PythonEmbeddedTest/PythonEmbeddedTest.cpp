@@ -164,7 +164,7 @@ comeback:
         }
     }
 
-    if (!no_interaction && save_output)
+    if (!no_interaction)
     {
         std::string output = input_file;
 
