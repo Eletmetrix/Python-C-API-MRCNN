@@ -4,19 +4,17 @@
 #include <vector>
 #include <sstream>
 
-/*
- * Coordinate structure
- */
+template<typename T>
 struct Coordinate
 {
-    uint16_t x;
-    uint16_t y;
+    T x;
+    T y;
 
     Coordinate()
         : x(0), y(0)
     { }
 
-    Coordinate(uint16_t X, uint16_t Y)
+    Coordinate(T X, T Y)
         : x(X), y(Y)
     { }
 
@@ -28,14 +26,14 @@ struct Coordinate
 
 struct Rectangle
 {
-    Coordinate LeftUp;
-    Coordinate RightDown;
+    Coordinate<uint16_t> LeftUp;
+    Coordinate<uint16_t> RightDown;
 
     Rectangle()
         : LeftUp(), RightDown()
     {}
 
-    Rectangle(Coordinate leftUp, Coordinate rightDown)
+    Rectangle(Coordinate<uint16_t> leftUp, Coordinate<uint16_t> rightDown)
         : LeftUp(leftUp), RightDown(rightDown)
     {}
 
@@ -44,12 +42,6 @@ struct Rectangle
         return "(Left Up Corner: " + LeftUp.toString() + ", Right Down Corner: " + RightDown.toString() + ")";
     }
 };
-
-std::ostream& operator<< (std::ostream& os, const Coordinate& coord)
-{
-    os << "(" << coord.x << ", " << coord.y << ")";
-    return os;
-}
 
 /*
  * The Mask R-CNN library. 
@@ -81,6 +73,7 @@ public:
         mrcnn_module = PyImport_ImportModule("m_rcnn");
 
         if (!mrcnn_module) {
+            PyErr_Print();
             std::cout << "modules are not found!" << std::endl;
             mrcnn_module = nullptr;
         }
@@ -120,7 +113,7 @@ public:
         return TestModel;
     }
 
-    PyObject* GetCornersFromGeneratedMask(PyObject* Image, PyObject* TestModel, int tolerance = 10, int perCorner = 21, Coordinate scale_factor = Coordinate(0.95f, 0.95f))
+    PyObject* GetCornersFromGeneratedMask(PyObject* Image, PyObject* TestModel, int tolerance = 10, int perCorner = 21, Coordinate<float> scale_factor = Coordinate<float>(0.95f, 0.95f))
     {
         PyObject* getcornersfromgeneratedmask_func = PyObject_GetAttrString(mrcnn_module, "GetCornersFromGeneratedMask");
 
@@ -130,14 +123,16 @@ public:
             return nullptr;
         }
 
+        PyObject* scale_factor_ptr = Py_BuildValue("(ff)", scale_factor.x, scale_factor.y);
+
+        std::cout << "CPP: " << scale_factor.toString() << ", Python: " << PyUnicode_AsUTF8(PyObject_Repr(scale_factor_ptr));
+
         PyObject* Coords = PyObject_CallObject(getcornersfromgeneratedmask_func, PyTuple_Pack(5, 
             Image, 
             TestModel, 
             PyLong_FromLong(tolerance), 
             PyLong_FromLong(perCorner), 
-            PyTuple_Pack(2, 
-                PyLong_FromLong(scale_factor.x), 
-                PyLong_FromLong(scale_factor.y))));
+            scale_factor_ptr));
 
         if (Coords == nullptr)
         {
@@ -149,6 +144,19 @@ public:
         return Coords;
     }
 
+    void SaveImage(PyObject* Image, PyObject* Rect, const char* Path)
+    {
+        PyObject* saveimage_func = PyObject_GetAttrString(mrcnn_module, "SaveImage");
+
+        if (saveimage_func == nullptr)
+        {
+            PyErr_Print();
+            return;
+        }
+
+        PyObject_CallObject(saveimage_func, PyTuple_Pack(3, Image, Rect, PyUnicode_FromString(Path)));
+    }
+
 protected:
     PyObject* mrcnn_module = nullptr;
 };
@@ -157,6 +165,8 @@ static Rectangle rect = Rectangle();
 
 int main()
 {
+    std::cout << "System Initializing..." << std::endl;
+
     Py_Initialize();
 
     // Load libraries.
@@ -168,28 +178,77 @@ int main()
         return EXIT_FAILURE;
     }
 
-    PyObject* Image = mrcnn->LoadImage("Images\\image.jpg");
     PyObject* TestModel = mrcnn->LoadReadyWeights("Data\\mask_rcnn_object_0005.h5");
+
+comeback:
+
+    std::string file_path = "Images\\image.jpg";
+    while (true)
+    {
+        std::cout << "Please enter the file name [Images\\image.jpg]: ";
+        std::string input;
+        std::getline(std::cin, input);
+        if (!input.empty())
+        {
+            file_path = input;
+        }
+
+        FILE* file;
+        if (fopen_s(&file, file_path.c_str(), "r") == 0)
+        {
+            fclose(file);
+            break;
+        }
+        else
+        {
+            std::cout << "File doesn't exists. Make sure your file is valid." << std::endl;
+            file_path = "Images\\image.jpg";
+        }
+    }
+
+    PyObject* Image = mrcnn->LoadImage(file_path.c_str());
     PyObject* Coords = mrcnn->GetCornersFromGeneratedMask(Image, TestModel);
 
     Py_DECREF(Image);
     Py_DECREF(TestModel);
 
-    /*PyObject* pStr = PyObject_Repr(Coords);
-    if (Coords)
-    {
-        const char* str = PyUnicode_AsUTF8(pStr);
-        std::cout << "Val: " << str << std::endl;
-    }*/
-
     rect = Rectangle(
-        Coordinate(PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 0), 0)), PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 1), 0))),
-        Coordinate(PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 0), 1)), PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 1), 1)))
+        Coordinate<uint16_t>(PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 0), 0)), PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 1), 0))),
+        Coordinate<uint16_t>(PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 0), 1)), PyLong_AsLong(PyTuple_GetItem(PyTuple_GetItem(Coords, 1), 1)))
     );
 
-    std::cout << rect.toString();
+    std::cout << rect.toString() << std::endl;
+
+    std::cout << "Would you like to save the image? (y/n): ";
+    std::string answer;
+    std::getline(std::cin, answer);
+    if (!answer.empty() && (answer == "y" || answer == "Y"))
+    {
+        std::string output = file_path;
+
+        size_t pos = output.find_last_of("\\/");
+        std::string file_name = (pos == std::string::npos) ? output : output.substr(pos + 1);
+        pos = file_name.find_last_of(".");
+        std::string file_ext = (pos == std::string::npos) ? "" : file_name.substr(pos);
+
+        std::string new_file_name = "output" + file_ext;
+        output.replace(output.end() - file_name.length(), output.end(), new_file_name);
+
+        mrcnn->SaveImage(Image, Coords, output.c_str());
+
+        PyErr_Print();
+    }
+
+    answer.clear();
 
     Py_DECREF(Coords);
+
+    std::cout << "Would you like to enter a new file name? (y/n): ";
+    std::getline(std::cin, answer);
+    if (!answer.empty() && (answer == "y" || answer == "Y"))
+    {
+        goto comeback;
+    }
 
     Py_Finalize();
 

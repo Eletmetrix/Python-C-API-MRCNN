@@ -13,8 +13,6 @@ import os
 import shutil
 import zipfile
 
-# Root directory of the project
-print("VERS 0.5 - updated 11/03/2023")
 # Import Mask RCNN
 from config import Config
 import utils
@@ -119,7 +117,14 @@ def GetCornersFromGeneratedMask(image, test_model, tolerance = 10, per_corner = 
     right_down_x += int(diff_horizontal / 2)
     right_down_y += int(diff_vertical / 2)
 
+    image = cv2.rectangle(image, (left_up_x, left_up_y), (right_down_x, right_down_y), (255, 0, 0), 2)
+
     return ((left_up_x, left_up_y), (right_down_x, right_down_y))
+
+def SaveImage(Image, Coords, Path):
+    Image = cv2.rectangle(Image, Coords[0], Coords[1], (255, 0, 0), 2)
+    cv2.imwrite(Path, Image)
+    print("Saved: ", os.path.abspath(Path))
 # End helper functions for Python/C API
 
 class CustomConfig(Config):
