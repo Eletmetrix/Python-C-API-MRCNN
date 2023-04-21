@@ -35,7 +35,7 @@ int wmain(int argc, wchar_t* argv[])
 
     if (vm.count("help")) {
         std::cout << desc << std::endl << "Examples:" << std::endl;
-        std::cout << "  mrcnn -q -n -i Images/image.jpg" << std::endl;
+        std::cout << "  mrcnn -n -i Images/image.jpg" << std::endl;
         return 0;
     }
 
