@@ -154,6 +154,9 @@
   <ItemGroup>
     <Image Include="Images\image.jpg" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Utilities.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
